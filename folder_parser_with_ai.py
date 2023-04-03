@@ -1,3 +1,4 @@
+import os
 from os import listdir, mkdir
 from os.path import isfile, join, getmtime
 from shutil import copy2
@@ -112,6 +113,7 @@ with open("ai_logs.txt", "a", encoding="UTF-8") as log:
                         image,
                         f"{OUTPUT_PATH}{product_id}/{new_img_name}"
                     )
+                    os.system(f"rm {image}")
 
                     if index-1 < AI_PHOTO_COUNT and AI_ACTIVE:
                         print(f"[INFO] [{get_time()}] Запущена AI-обработка изображения {index} для товара {product_id}...")
