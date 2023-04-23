@@ -8,6 +8,8 @@ from pyzbar.pyzbar import decode
 from rembg import new_session, remove
 from PIL import Image
 import scipy.ndimage as ndimage
+import numpy as np
+
 
 def get_time():
     now = datetime.now()
@@ -15,8 +17,8 @@ def get_time():
     return dt_string
 
 
-def read_barcode(image):
-    img = cv2.imread(image)
+def read_barcode(_image):
+    img = cv2.imread(_image)
     detected_barcodes = decode(img)
     if not detected_barcodes:
         return ""
@@ -38,7 +40,8 @@ def process(session, _image, *, size=None, bgcolor='#f6f6f6'):
 
 def rotate(input_file):
     _image = cv2.imread(input_file)
-    _Gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # print(_image)
+    _Gray = cv2.cvtColor(_image, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(_Gray, 245, 247, cv2.THRESH_BINARY_INV)
     contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2:]
 
@@ -172,21 +175,24 @@ with open("ai_logs.txt", "a", encoding="UTF-8") as log:
                     new_img_name = f"{index}.{image.split('.')[-1]}"
                     print(f"[INFO] [{get_time()}] Копирование {image} в ./{product_id}/{new_img_name}")
                     log.write(f"[INFO] [{get_time()}] Копирование {image} в ./{product_id}/{new_img_name}\n")
+
+                    new_path = f"{OUTPUT_PATH}{product_id}/{new_img_name}"
+
                     copy2(
                         image,
-                        f"{OUTPUT_PATH}{product_id}/{new_img_name}"
+                        new_path
                     )
-                    os.system(f"rm {image}")
+                    # os.system(f"rm {image}")
 
                     if index-1 < AI_PHOTO_COUNT and AI_ACTIVE:
                         print(f"[INFO] [{get_time()}] Запущена AI-обработка изображения {index} для товара {product_id}...")
                         log.write(f"[INFO] [{get_time()}] Запущена AI-обработка изображения {index} для товара {product_id}...\n")
 
-                        img = Image.open(f"{OUTPUT_PATH}{product_id}/{new_img_name}")
+                        img = Image.open(new_path)
                         res = process(rsession, img, size=img.size, bgcolor="#F6F6F6")
-                        res.save(f"{OUTPUT_PATH}{product_id}/{new_img_name}")
+                        res.save(new_path)
 
-                        rotate(f"{OUTPUT_PATH}{product_id}/{new_img_name}")
+                        rotate(new_path)
 
                         print(f"[INFO] [{get_time()}] AI-обработка изображения {index} для товара {product_id} завершена")
                         log.write(f"[INFO] [{get_time()}] AI-обработка изображения {index} для товара {product_id} завершена\n")
