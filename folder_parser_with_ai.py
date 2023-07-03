@@ -33,14 +33,13 @@ def process(session, _image, *, size=None, bgcolor='#f6f6f6'):
     else:
         size = _image.size
     result = Image.new("RGB", size, bgcolor)
-    out = remove(_image, session=session, alpha_matting=True, alpha_matting_erode_size=15)
+    out = remove(_image, session=session, alpha_matting=True, alpha_matting_erode_size=3)
     result.paste(out, mask=out)
     return result
 
 
 def rotate(input_file):
     _image = cv2.imread(input_file)
-    # print(_image)
     _Gray = cv2.cvtColor(_image, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(_Gray, 245, 247, cv2.THRESH_BINARY_INV)
     contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2:]
@@ -58,7 +57,9 @@ def rotate(input_file):
             else:
                 rangle = 90 - abs(angle)
 
-            if abs(rangle) < 25:
+            M = cv2.moments(contours[i])
+
+            if abs(rangle) < 25 and M["m00"] > 0:
                 rotate_img = ndimage.rotate(binary, rangle, reshape=True)
                 xs, ys = rotate_img.shape
 
@@ -101,11 +102,37 @@ def rotate(input_file):
     cv2.imwrite(f"{input_file}", rotate_img)
 
 
+def center(input_file):
+    _image = cv2.imread(input_file)
+    _Gray = cv2.cvtColor(_image, cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(_Gray, 245, 247, cv2.THRESH_BINARY_INV)
+
+    M = cv2.moments(binary)
+
+    cy = int(M['m10'] / M['m00'])
+    cx = int(M['m01'] / M['m00'])
+
+    num_rows, num_cols = _image.shape[:2]
+
+    imx = num_rows/2
+    imy = num_cols/2
+
+    shiftx = imx - cx
+    shifty = imy - cy
+
+    translation_matrix = np.float32([[1, 0, shiftx], [0, 1, shifty]])
+    shifted_image = cv2.warpAffine(_image, translation_matrix, (num_cols, num_rows),
+                              borderMode=cv2.BORDER_CONSTANT,
+                              borderValue=(246, 246, 246))
+
+    cv2.imwrite(f"{input_file}", shifted_image)
+
+
 rsession = new_session("u2net")
 AI_ACTIVE = False
 AI_PHOTO_COUNT = 2
 
-WORKING_PATH = "./ДЛЯТРЕНИРОВОЧКИ/"
+WORKING_PATH = "./input/"
 OUTPUT_PATH = "./output/"
 print("Loading...")
 
@@ -158,8 +185,13 @@ with open("ai_logs.txt", "a", encoding="UTF-8") as log:
             except:
                 pass
 
+            # ADD / DELETE THIS
+            # product_id = "test"
+
             if product_id != "":
+                # COMMENT/UNCOMMENT THIS
                 current_queue.pop()
+
                 print(f"[INFO] [{get_time()}] Файл {file} содержит штрихкод: {product_id}")
                 log.write(f"[INFO] [{get_time()}] Файл {file} содержит штрихкод: {product_id}\n")
                 product_images = current_queue
@@ -170,6 +202,7 @@ with open("ai_logs.txt", "a", encoding="UTF-8") as log:
 
                 mkdir(f"{OUTPUT_PATH}{product_id}")
                 index = 0
+                print(product_images)
                 for image in product_images:
                     index += 1
                     new_img_name = f"{index}.{image.split('.')[-1]}"
@@ -191,6 +224,8 @@ with open("ai_logs.txt", "a", encoding="UTF-8") as log:
                         img = Image.open(new_path)
                         res = process(rsession, img, size=img.size, bgcolor="#F6F6F6")
                         res.save(new_path)
+
+                        center(new_path)
 
                         rotate(new_path)
 
