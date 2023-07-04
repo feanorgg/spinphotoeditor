@@ -9,6 +9,7 @@ from rembg import new_session, remove
 from PIL import Image
 import scipy.ndimage as ndimage
 import numpy as np
+import time
 
 
 def get_time():
@@ -42,25 +43,30 @@ def rotate(input_file):
     _image = cv2.imread(input_file)
     _Gray = cv2.cvtColor(_image, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(_Gray, 245, 247, cv2.THRESH_BINARY_INV)
-    contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2:]
+    # cv2.imshow("bin", binary)
+    # contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2:]
 
     minh = 10000
     ang = 0
+    __ang = -20
 
-    for i in range(len(contours)):
-        rect = cv2.minAreaRect(contours[i])
-        angle = rect[2]
+    # for i in range(len(contours)):
+    for i in range(80):
+        # rect = cv2.minAreaRect(contours[i])
+        # angle = rect[2]
+        angle = __ang
+        __ang += 0.5
         if angle != 0 and abs(angle) < 25:
-            rwidth, rheight = rect[0]
-            if rheight > rwidth:
-                rangle = angle
-            else:
-                rangle = 90 - abs(angle)
+            # rwidth, rheight = rect[0]
+            # if rheight > rwidth:
+            rangle = angle
+            # else:
+            #     rangle = 90 - abs(angle)
 
-            M = cv2.moments(contours[i])
+            # M = cv2.moments(contours[i])
 
-            if abs(rangle) < 25 and M["m00"] > 0:
-                rotate_img = ndimage.rotate(binary, rangle, reshape=True)
+            if abs(rangle) < 25: # and M["m00"] > 0:
+                rotate_img = ndimage.rotate(binary, rangle, reshape=False)
                 xs, ys = rotate_img.shape
 
                 xmin = 0
@@ -72,13 +78,13 @@ def rotate(input_file):
                     y = 0
                     while y < ys:
                         weight += rotate_img[x][y]
-                        y += 10
+                        y += 8
 
                     if weight > 1000:
                         xmin = x
                         break
 
-                    x += 10
+                    x += 5
 
                 x = xs - 1
                 while x > int(xs) / 2:
@@ -86,19 +92,26 @@ def rotate(input_file):
                     y = 0
                     while y < ys:
                         weight += rotate_img[x][y]
-                        y += 10
+                        y += 8
 
                     if weight > 1000:
                         xmax = x
                         break
 
-                    x -= 10
+                    x -= 5
+
+                # print(f"iteration: height {minh}, angle {rangle}")
 
                 if xmax - xmin < minh:
                     minh = xmax - xmin
-                    ang = rangle
 
-    rotate_img = ndimage.rotate(_image, ang, reshape=True, cval=246)
+                    ang = rangle
+                elif (xmax - xmin) - minh > 20 and abs(__ang - ang) > 5:
+                    break
+
+    rotate_img = ndimage.rotate(_image, ang, reshape=False, cval=246)
+    # cv2.imshow("image", rotate_img)
+    # cv2.waitKey(0)
     cv2.imwrite(f"{input_file}", rotate_img)
 
 
@@ -106,6 +119,8 @@ def center(input_file):
     _image = cv2.imread(input_file)
     _Gray = cv2.cvtColor(_image, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(_Gray, 245, 247, cv2.THRESH_BINARY_INV)
+    # cv2.imshow("centering input", binary)
+    # cv2.waitKey(0)
 
     M = cv2.moments(binary)
 
@@ -114,17 +129,27 @@ def center(input_file):
 
     num_rows, num_cols = _image.shape[:2]
 
-    imx = num_rows/2
-    imy = num_cols/2
+    imx = int(num_rows/2)
+    imy = int(num_cols/2)
+
+    # print(f"Object center: x: {cx}, y: {cy}")
+    # print(f"Image center: x: {imx}, y: {imy}")
 
     shiftx = imx - cx
     shifty = imy - cy
 
-    translation_matrix = np.float32([[1, 0, shiftx], [0, 1, shifty]])
+    # _image = cv2.circle(_image, (cy, cx), 10, (0, 0, 255), 10)
+    # _image = cv2.circle(_image, (imy, imx), 10, (0, 0, 255), 10)
+
+    # print(f"Shifting: x: {shiftx}, y: {shifty}")
+
+    translation_matrix = np.float32([[1, 0, shifty], [0, 1, shiftx]])
     shifted_image = cv2.warpAffine(_image, translation_matrix, (num_cols, num_rows),
                               borderMode=cv2.BORDER_CONSTANT,
                               borderValue=(246, 246, 246))
 
+    # cv2.imshow("centering output", shifted_image)
+    # cv2.waitKey(0)
     cv2.imwrite(f"{input_file}", shifted_image)
 
 
@@ -225,8 +250,18 @@ with open("ai_logs.txt", "a", encoding="UTF-8") as log:
                         res = process(rsession, img, size=img.size, bgcolor="#F6F6F6")
                         res.save(new_path)
 
+                        print(
+                            f"[INFO] [{get_time()}] Запущена центровка изображения {index} для товара {product_id}...")
+                        log.write(
+                            f"[INFO] [{get_time()}] Запущена центровка изображения {index} для товара {product_id}...\n")
                         center(new_path)
 
+                        time.sleep(1)
+
+                        print(
+                            f"[INFO] [{get_time()}] Запущено выравнивание изображения {index} для товара {product_id}...")
+                        log.write(
+                            f"[INFO] [{get_time()}] Запущено выравнивание изображения {index} для товара {product_id}...\n")
                         rotate(new_path)
 
                         print(f"[INFO] [{get_time()}] AI-обработка изображения {index} для товара {product_id} завершена")
